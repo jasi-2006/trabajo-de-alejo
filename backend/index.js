@@ -13,20 +13,33 @@ mongoose.connect(mongoURI)
   .then(() => console.log("✅ Conectado a MongoDB Atlas"))
   .catch(err => console.error("❌ Error de conexión:", err));
 
-// Definir qué vamos a guardar (un esquema simple de tareas)
-const Task = mongoose.model('Task', { nombre: String });
+// Esquema de registro de personas
+const PersonaSchema = new mongoose.Schema({
+  nombre: String,
+  apellido: String,
+  email: String,
+  telefono: String,
+  fecha: { type: Date, default: Date.now }
+});
+const Persona = mongoose.model('Persona', PersonaSchema);
 
-// Endpoint 1: Obtener datos (GET)
-app.get('/api/tareas', async (req, res) => {
-  const tareas = await Task.find();
-  res.json(tareas);
+// GET - Obtener todos los registros
+app.get('/api/personas', async (req, res) => {
+  const personas = await Persona.find().sort({ fecha: -1 });
+  res.json(personas);
 });
 
-// Endpoint 2: Guardar datos (POST) - Esta es la operación en BD que pide el requisito
-app.post('/api/tareas', async (req, res) => {
-  const nuevaTarea = new Task({ nombre: req.body.nombre });
-  await nuevaTarea.save();
-  res.json(nuevaTarea);
+// POST - Crear registro
+app.post('/api/personas', async (req, res) => {
+  const persona = new Persona(req.body);
+  await persona.save();
+  res.json(persona);
+});
+
+// DELETE - Eliminar registro
+app.delete('/api/personas/:id', async (req, res) => {
+  await Persona.findByIdAndDelete(req.params.id);
+  res.json({ mensaje: 'Registro eliminado' });
 });
 
 app.listen(5000, () => console.log("🚀 Backend en puerto 5000"));
