@@ -1,45 +1,67 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
+const mysql = require('mysql2');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// REEMPLAZA ESTA URL con la que te dio MongoDB Atlas (Connect -> Drivers)
-const mongoURI = "mongodb+srv://USUARIO:CONTRASEÑA@cluster0.xxxxx.mongodb.net/mi_proyecto?retryWrites=true&w=majority";
-
-mongoose.connect(mongoURI)
-  .then(() => console.log("✅ Conectado a MongoDB Atlas"))
-  .catch(err => console.error("❌ Error de conexión:", err));
-
-// Esquema de registro de personas
-const PersonaSchema = new mongoose.Schema({
-  nombre: String,
-  apellido: String,
-  email: String,
-  telefono: String,
-  fecha: { type: Date, default: Date.now }
+const db = mysql.createConnection({
+  host: 'localhost',
+  user: 'root',
+  password: '',
+  database: 'proyecto_sena'
 });
-const Persona = mongoose.model('Persona', PersonaSchema);
+
+db.connect((err) => {
+  if (err) {
+    console.error('❌ Error de conexión a MySQL:', err.message);
+    return;
+  }
+  console.log('✅ Conectado a MySQL');
+
+  db.query(`
+    CREATE TABLE IF NOT EXISTS personas (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      nombre VARCHAR(100) NOT NULL,
+      apellido VARCHAR(100) NOT NULL,
+      email VARCHAR(150) NOT NULL,
+      telefono VARCHAR(20),
+      fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `, (err) => {
+    if (err) console.error('❌ Error creando tabla:', err.message);
+    else console.log('✅ Tabla personas lista');
+  });
+});
 
 // GET - Obtener todos los registros
-app.get('/api/personas', async (req, res) => {
-  const personas = await Persona.find().sort({ fecha: -1 });
-  res.json(personas);
+app.get('/api/personas', (req, res) => {
+  db.query('SELECT * FROM personas ORDER BY fecha DESC', (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
 });
 
 // POST - Crear registro
-app.post('/api/personas', async (req, res) => {
-  const persona = new Persona(req.body);
-  await persona.save();
-  res.json(persona);
+app.post('/api/personas', (req, res) => {
+  const { nombre, apellido, email, telefono } = req.body;
+  db.query(
+    'INSERT INTO personas (nombre, apellido, email, telefono) VALUES (?, ?, ?, ?)',
+    [nombre, apellido, email, telefono],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: result.insertId, nombre, apellido, email, telefono, fecha: new Date() });
+    }
+  );
 });
 
 // DELETE - Eliminar registro
-app.delete('/api/personas/:id', async (req, res) => {
-  await Persona.findByIdAndDelete(req.params.id);
-  res.json({ mensaje: 'Registro eliminado' });
+app.delete('/api/personas/:id', (req, res) => {
+  db.query('DELETE FROM personas WHERE id = ?', [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ mensaje: 'Registro eliminado' });
+  });
 });
 
-app.listen(5000, () => console.log("🚀 Backend en puerto 5000"));
+app.listen(5000, () => console.log('🚀 Backend en puerto 5000'));
